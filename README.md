@@ -22,6 +22,13 @@ Users must keep the structure of the directories of the programs
 Before simulation, users build dataset files for cross validataion and independent test:   
 seqwin(max_length)=35   
 $sh data_const.sh
+
+## 2-1 Programs for removal of peptides including non-standard amino acid and for analysis of peptide sequence length distribution
+data_stand.py  
+data_analsis_1.py  
+## 2-2 Programs for making training and test datasets and making the test in fasta format.
+train_division_1.py  
+test_fasta.py
   
 # 3 Baselin model construction and meta-classifier construction
 seqwin(max_length)=35  
