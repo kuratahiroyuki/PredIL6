@@ -20,25 +20,25 @@ Users must keep the structure of the directories of the programs
 
 # 2 Construction of dataset
 Before simulation, users build dataset files for cross validataion and independent test:   
->sh data_const.sh  
+$sh data_const.sh  
 The file of data_const.sh consists of the following programs  
 
 ## 2-1 Programs for removal of peptides including non-standard amino acids and for analysis of peptide sequence length distribution
 Users remove the peptides including non-standard amino acids  
->python data_stand.py  
+$python data_stand.py  
 Users can evaluate the peptide sequence length distribution.  
->python data_analsis_1.py  
+$python data_analsis_1.py  
 
 ## 2-2 Programs for making training and test datasets
 Users prepare the training dataset to conduct 5-fold cross validation.  
->python train_division_1.py  
+$python train_division_1.py  
 Users adjust the test dataset in the fasta format.  
->python test_fasta.py  
+$python test_fasta.py  
   
 # 3 Baselin model construction and meta-classifier construction
 Users train a series of baseline models with the training dataset and then construct a meta-classifier. Furthermore, users test the baseline models and the meta-classifier, evaluate their prediction performance (metrics), and save the metrics.  
->cd program  
->sh process.sh  
+$cd program  
+$sh process.sh  
 The file of process.sh consists of the following programs (3-1, 3-2, 3-3, 3-4).  
 The maximum sequence length can be set to 35.  
 
@@ -50,17 +50,17 @@ Users train the baseline models with deep learning methods via 5-fold cross vali
 
 ## 3-2 Program for meta-classifier construction
 Users fuse the probability scores outputted by all the baseline models, and train a meta-classifier by using the fused data. Genetic algorithms are used to determine the weight of each baseline model to optimize the meta-classifier.  
->python ml_fusion_GA.py  
+$python ml_fusion_GA.py  
 
 ## 3-3 Program for evaluation of the baseline models
 Users evaluate the prediction performance (metrics) of the baseline models and meta-classifier. The metrics are saved in the csv file.  
->python analysis_622.py  
+$python analysis_622.py  
 
 ## 3-4 Programs for output of prediction results
 Users save the csv file of the metrics of the baseline models in the excel format.  
->python csv_xlsx_34.py  
+$python csv_xlsx_34.py  
 Users save the csv file of the metrics of the meta-classifier in the excel format.  
->python csv_xlsx_37.py  
+$python csv_xlsx_37.py  
 
 # References on RNA encodings
 https://ilearn.erc.monash.edu/
