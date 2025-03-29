@@ -44,10 +44,10 @@ The maximum sequence length can be set to 35.
 
 ## 3-1 Programs for training and testing of the baseline models
 Users train the baseline models with machine learning methods via 5-fold cross validation.  
-$cd program/ml
+$cd program/ml  
 $python ml_train_test_46.py  
 Users train the baseline models with deep learning methods via 5-fold cross validation.  
-$cd program/network
+$cd program/network  
 $python train_test_86.py  
 
 ## 3-2 Program for meta-classifier construction
