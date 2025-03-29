@@ -44,22 +44,28 @@ The maximum sequence length can be set to 35.
 
 ## 3-1 Programs for training and testing of the baseline models
 Users train the baseline models with machine learning methods via 5-fold cross validation.  
-./program/ml/ml_train_test_46.py  
+$cd program/ml
+$python ml_train_test_46.py  
 Users train the baseline models with deep learning methods via 5-fold cross validation.  
-./program/network/train_test_86.py  
+$cd program/network
+$python train_test_86.py  
 
 ## 3-2 Program for meta-classifier construction
 Users fuse the probability scores outputted by all the baseline models, and train a meta-classifier by using the fused data. Genetic algorithms are used to determine the weight of each baseline model to optimize the meta-classifier.  
+$cd program  
 $python ml_fusion_GA.py  
 
 ## 3-3 Program for evaluation of the baseline models
 Users evaluate the prediction performance (metrics) of the baseline models and meta-classifier. The metrics are saved in the csv file.  
+$cd program  
 $python analysis_622.py  
 
 ## 3-4 Programs for output of prediction results
 Users save the csv file of the metrics of the baseline models in the excel format.  
+$cd program  
 $python csv_xlsx_34.py  
 Users save the csv file of the metrics of the meta-classifier in the excel format.  
+$cd program  
 $python csv_xlsx_37.py  
 
 # References on RNA encodings
