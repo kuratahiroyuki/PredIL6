@@ -30,7 +30,6 @@ from LSTM_network import Lstm
 from LSTM_network_bidirectional import bLSTM
 #from CNN_LSTM_network import CNN_LSTM  #train_test_87.py
 from CNN_network import CNN
-from CNNbiLSTM_scratch import CNNBiLSTM
 import collections
 import time
 import pickle
@@ -196,40 +195,6 @@ def emb_seq_w2v_bpe(seq, w2v_model, num, seqwin, features):
 
     return seq_emb
 
-def OneHotPro(sequence, seq_win, characters='ARNDCQEGHILKMFPSTWYVBJOZX'):
-    """
-    One-hot encode a protein sequence based on the provided set of characters.
-    If the sequence is shorter than seq_win, pad it with zeros.
-
-    Args:
-    sequence (str): The protein sequence to encode.
-    seq_win (int): The desired length of the output sequence (with padding if necessary).
-    characters (str): The set of unique characters to use for one-hot encoding.
-
-    Returns:
-    np.array: A one-hot encoded matrix of shape (len(characters), seq_win) representing the input sequence.
-    """
-    # Create the one-hot encoding dictionary
-    char_to_onehot = {}
-    for i, char in enumerate(characters):
-        onehot_vector = np.zeros(len(characters), dtype=int)
-        onehot_vector[i] = 1
-        char_to_onehot[char] = onehot_vector
-
-    # Encode the input sequence
-    encoded_sequence = np.array([char_to_onehot[char] for char in sequence])
-
-    # Padding with zeros if the sequence is shorter than seq_win
-    if len(sequence) < seq_win:
-        padding_length = seq_win - len(sequence)
-        padding = np.zeros((padding_length, len(characters)), dtype=int)
-        encoded_sequence = np.vstack((encoded_sequence, padding))
-
-    # Truncate if the sequence is longer than seq_win
-    encoded_sequence = encoded_sequence[:seq_win]
-    encoded_sequence = encoded_sequence.T
-    
-    return encoded_sequence
 
 class pv_data_sets():
     def __init__(self, data_sets, encode_method, aa2be_dict, kmer, w2v_model, features, sp, esm2_model, seq2esm2_dict, nn_embed, seqwin):
@@ -251,13 +216,10 @@ class pv_data_sets():
         return len(self.labels)
 
     def __getitem__(self, idx):
-        
-        sequence = self.seq[idx] 
+
         label = self.labels[idx] 
         if self.encode_method == 'BE':
             emb_mat = emb_seq_BE(self.seq[idx], self.aa2be_dict, self.kmer, self.seqwin, self.features)
-        elif self.encode_method == 'OHP':
-            emb_mat = OneHotPro(self.seq[idx], self.seqwin)
         elif self.encode_method == 'W2V':
             emb_mat = emb_seq_w2v(self.seq[idx], self.w2v_model, self.kmer, self.seqwin, self.features)
         elif self.encode_method == 'W2V_BPE':
@@ -267,7 +229,7 @@ class pv_data_sets():
         elif self.encode_method == 'NN':
             emb_mat = emb_seq_NN(self.seq[idx], self.nn_embed, aa2index_esm_dict, self.seqwin, self.features)
             #print(f'emb_mat: {emb_mat.shape}')
-            return emb_mat.float().to(device), torch.tensor(label).to(device), sequence
+            return emb_mat.float().to(device), torch.tensor(label).to(device)
         elif self.encode_method == 'ESM2':
             emb_mat = self.seq2esm2_dict[self.seq[idx]][...,:self.features]
             return emb_mat.float().to(device), torch.tensor(label).to(device)
@@ -275,49 +237,10 @@ class pv_data_sets():
             print('no encoding method')
             exit()
               
-        return torch.tensor(emb_mat).float().to(device), torch.tensor(label).to(device), sequence 
+        return torch.tensor(emb_mat).float().to(device), torch.tensor(label).to(device)
 
-class BinaryFocalLoss(nn.Module):
-    def __init__(self, alpha=0.25, gamma=2, reduction='mean'):
-        """
-        Focal Loss for binary classification.
-        Args:
-        - alpha (float): Weighting factor for the positive class (default is 1).
-        - gamma (float): Focusing parameter (default is 2).
-        - reduction (str): Specifies the reduction to apply to the output ('mean', 'sum', or 'none').
-        """
-        super(BinaryFocalLoss, self).__init__()
-        self.alpha = alpha
-        self.gamma = gamma
-        self.reduction = reduction
-
-    def forward(self, logits, targets):
-        """
-        Forward pass for the loss function.
-        Args:
-        - logits (torch.Tensor): Predictions from the model (before applying sigmoid), of shape (batch_size, 1).
-        - targets (torch.Tensor): Ground truth binary labels (0 or 1), of shape (batch_size, 1).
-        Returns:
-        - loss (torch.Tensor): The computed focal loss.
-        """
-        # Apply sigmoid to get probabilities
-        probs = logits #torch.sigmoid(logits)
-        # Calculate the binary cross entropy
-        bce_loss = F.binary_cross_entropy_with_logits(logits, targets, reduction='none')
-        # Calculate the pt (probability of the correct class)
-        pt = probs * targets + (1 - probs) * (1 - targets)  # pt = p_t
-        # Calculate the focal loss
-        focal_loss = self.alpha * (1 - pt) ** self.gamma * bce_loss
-        # Apply reduction
-        if self.reduction == 'mean':
-            return focal_loss.mean()
-        elif self.reduction == 'sum':
-            return focal_loss.sum()
-        else:
-            return focal_loss
-        
 class train_test_process():
-    def __init__(self, out_path, loss_type = "balanced", tra_batch_size = 128, val_batch_size = 128, test_batch_size = 128, lr = 0.001, n_epoch = 10000, early_stop = 25, thresh = 0.5): #lr = 0.00001,
+    def __init__(self, out_path, loss_type = "balanced", tra_batch_size = 128, val_batch_size = 128, test_batch_size = 32, lr = 0.001, n_epoch = 10000, early_stop = 25, thresh = 0.5): #lr = 0.00001,
         self.out_path = out_path
         self.tra_batch_size = tra_batch_size
         self.val_batch_size = val_batch_size
@@ -345,17 +268,15 @@ class train_test_process():
             features = vector_size   #1280    
         elif encode_method == 'BE':
             features = 25*kmer
-        elif encode_method == 'OHP':
-            features = 35    
         else:
             
             print("No encoding method")
        
         tra_data_all = pv_data_sets(train_data_sets, encode_method, aa2be_dict, kmer, w2v_model, features, sp_bpe, esm2_model, seq2esm2_dict, nn_embed, seqwin)
-        train_loader = DataLoader(dataset = tra_data_all, batch_size = self.tra_batch_size, shuffle=True)
+        train_loader = DataLoader(dataset = tra_data_all, batch_size = self.tra_batch_size, shuffle=False)
 
         val_data_all = pv_data_sets(val_data_sets, encode_method, aa2be_dict, kmer, w2v_model, features, sp_bpe, esm2_model, seq2esm2_dict, nn_embed, seqwin)
-        val_loader = DataLoader(dataset = val_data_all, batch_size = self.val_batch_size, shuffle=True)
+        val_loader = DataLoader(dataset = val_data_all, batch_size = self.val_batch_size, shuffle=False)
         
         test_data_all = pv_data_sets(test_data_sets, encode_method, aa2be_dict, kmer, w2v_model, features, sp_bpe, esm2_model, seq2esm2_dict, nn_embed, seqwin)
         test_loader = DataLoader(dataset = test_data_all, batch_size = 32, shuffle=False) 
@@ -373,9 +294,7 @@ class train_test_process():
             if encode_method == 'ESM2':   
                 net = TX(n_layers=3, d_model=features, n_heads=4, d_dim=100, d_ff=400, time_seq=seqwin-kmer+3).to(device) 
             else :
-                net = TX(n_layers=3, d_model=features, n_heads=4, d_dim=100, d_ff=400, time_seq=seqwin-kmer+1).to(device)   # 25 seqwin-kmer+1                       
-        elif deep_method == "CNNBiLSTM":
-            net = CNNBiLSTM(in_channels=25, conv_filters=[32, 64, 128, 256, 512], kernel_size=5, hidden_dim=128, num_layers=3, dropout=0.2).to(device)
+                net = TX(n_layers=3, d_model=features, n_heads=4, d_dim=100, d_ff=400, time_seq=seqwin-kmer+1).to(device)                         
         else:
            print('no net exist')
            exit()
@@ -384,12 +303,7 @@ class train_test_process():
          
         if(self.loss_type == "balanced"):
             criterion = nn.BCELoss()
-            #criterion = BinaryFocalLoss(alpha=0.9, gamma=5)
-            positive_class_weight = 0.11
-            negative_class_weight = 0.89 
-            pos_weight = torch.tensor(negative_class_weight / positive_class_weight)
-            #criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-
+            
         min_loss = 1000
         early_stop_count = 0
         with open(self.out_path + "/cv_result.txt", 'w') as f:
@@ -399,13 +313,13 @@ class train_test_process():
                       
             for epoch in range(self.n_epoch):
                 train_losses, val_losses = [], []
-                self.train_probs, self.train_labels, self.train_seqs = [], [], []
+                self.train_probs, self.train_labels = [], []
                            
                 print("epoch_" + str(epoch + 1) + "=====================", file = f, flush=True) 
                 print("train...", file = f, flush=True)
                 net.train()
                 
-                for i, (emb_mat, label, sequence) in enumerate(train_loader):
+                for i, (emb_mat, label) in enumerate(train_loader):
                     #print(f'emb_mat.shape {emb_mat.shape}') #torch.Size([128, 40, 64])
                     
                     opt.zero_grad()
@@ -424,7 +338,6 @@ class train_test_process():
                     train_losses.append(float(loss.item()))
                     self.train_probs.extend(outputs.cpu().clone().detach().squeeze(1).numpy().flatten().tolist())
                     self.train_labels.extend(label.cpu().clone().detach().squeeze(1).numpy().flatten().tolist())
-                    self.train_seqs.extend(list(sequence))
 
                 train_thresh = 0.5
                 print("train_loss:: value: %f, epoch: %d" % (sum(train_losses) / len(train_losses), epoch + 1), file = f, flush=True) 
@@ -446,8 +359,8 @@ class train_test_process():
                 print("validation...", file = f, flush=True)
                 
                 net.eval()
-                self.val_probs, self.val_labels, self.val_seqs = [], [], []
-                for i, (emb_mat, label, sequence) in enumerate(val_loader):
+                self.val_probs, self.val_labels = [], []
+                for i, (emb_mat, label) in enumerate(val_loader):
                     with torch.no_grad():
                         outputs = net(emb_mat)
                         
@@ -463,7 +376,6 @@ class train_test_process():
                         
                     self.val_probs.extend(outputs.cpu().detach().squeeze(1).numpy().flatten().tolist())
                     self.val_labels.extend(label.cpu().detach().squeeze(1).numpy().flatten().tolist()) 
-                    self.val_seqs.extend(list(sequence))
                 
                 loss_epoch = sum(val_losses) / len(val_losses)
 
@@ -489,16 +401,14 @@ class train_test_process():
                     min_loss = loss_epoch
                     os.makedirs(self.out_path + "/data_model", exist_ok=True)
                     os.chdir(self.out_path + "/data_model")
-                    #torch.save(net.state_dict(), "deep_model")
-                    torch.save(net.state_dict(), "machine_model")
+                    torch.save(net.state_dict(), "deep_model")
 
                     final_thresh = 0.5
                     final_val_probs = self.val_probs  
                     final_val_labels = self.val_labels
-                    final_val_seqs = self.val_seqs
                     final_train_probs = self.train_probs
                     final_train_labels = self.train_labels
-                    final_train_seqs = self.train_seqs
+                    
                 else:
                     early_stop_count += 1
                     if early_stop_count >= self.early_stop:
@@ -522,22 +432,19 @@ class train_test_process():
             print(self.out_path, file = f, flush=True)
             print("The number of testing data:" + str(len(test_data_sets)), file = f, flush=True)
             
-            self.test_probs, self.test_labels, self.test_seqs = [], [], []
+            self.test_probs, self.test_labels = [], []
             
             print("testing...", file = f, flush=True)
             net.eval()
 
             
-            for i, (emb_mat, label, sequence) in enumerate(test_loader):
+            for i, (emb_mat, label) in enumerate(test_loader):
                 with torch.no_grad():                  
                     outputs = net(emb_mat) # deep learning model 1個ずつ処理できるのか？
                         
                 self.test_probs.extend(outputs.cpu().detach().squeeze(1).numpy().flatten().tolist())
                 self.test_labels.extend(label.cpu().detach().squeeze(1).numpy().flatten().tolist()) 
-                self.test_seqs.extend(list(sequence))   
-            final_test_probs = self.test_probs
-            final_test_labels = self.test_labels
-            final_test_seqs = self.test_seqs    
+                
             #print("test_threshold:: value: %f" % (str(self.thresh)), file = f, flush=True)
             for key in metrics_dict.keys():
                 if(key != "auc" and key != "AUPRC"):
@@ -551,9 +458,8 @@ class train_test_process():
             print("test_false_positive:: value: %f" % (fp_t), file = f, flush=True)
             print("test_false_negative:: value: %f" % (fn_t), file = f, flush=True)
             print("test_true_positive:: value: %f" % (tp_t), file = f, flush=True)
-            
-            return final_train_probs, final_train_labels, final_train_seqs, final_val_probs, final_val_labels, final_val_seqs, final_test_probs, final_test_labels, final_test_seqs
-            
+
+
 ###############################################################################################################              
 if __name__ == '__main__':
     start=time.time()
@@ -614,10 +520,6 @@ if __name__ == '__main__':
         w2v_model = []
         os.makedirs(out_path + '/' + deep_method + '/' + encode_method, exist_ok=True)
         out_path =  out_path + '/' + deep_method + '/' + encode_method
-    elif encode_method == 'OHP':
-        w2v_model = []
-        os.makedirs(out_path + '/' + deep_method + '/' + encode_method, exist_ok=True)
-        out_path =  out_path + '/' + deep_method + '/' + encode_method
     elif encode_method == 'NN':
         w2v_model = []
         os.makedirs(out_path + '/' + deep_method + '/' + encode_method, exist_ok=True)
@@ -640,7 +542,6 @@ if __name__ == '__main__':
   
     # cross validation
     for i in range(1, kfold+1):
-        print("-------------------Fold number ", i)
         train_dataset = trim_input_csv(path + "/" + str(i) + "/cv_train_" + str(i) + ".csv", seqwin, index_col = None)
         val_dataset = trim_input_csv(path + "/" + str(i) + "/cv_val_" + str(i) + ".csv", seqwin, index_col = None)
         test_dataset = trim_input_csv(test_path, seqwin, index_col = None)
@@ -656,23 +557,16 @@ if __name__ == '__main__':
         # "/home/kurata/myproject/pa3/il6/esm2/seq2esm2_dict.pkl"
         """       
         net = train_test_process(out_path + "/" + str(i), loss_type = loss_type) 
-        train_probs, train_labels, train_seqs, val_probs, val_labels, val_seqs, test_probs, test_labels, test_seqs = net.training_testing(train_dataset, val_dataset, test_dataset, deep_method, encode_method, seqwin, kmer, w2v_model, size, sp_bpe, esm2_model, seq2esm2_dict)
+        net.training_testing(train_dataset, val_dataset, test_dataset, deep_method, encode_method, seqwin, kmer, w2v_model, size, sp_bpe, esm2_model, seq2esm2_dict)
         
-        tr_output = pd.DataFrame([train_probs, train_labels, train_seqs], index = ["prob", "label", "seq"]).transpose()
-        tr_output = tr_output.sort_values(by='seq')
-        tr_output = tr_output.drop('seq', axis=1)
-        tr_output.to_csv(out_path + "/" + str(i) + "/train_roc.csv")
-        
-        cv_output = pd.DataFrame([val_probs, val_labels, val_seqs], index = ["prob", "label", "seq"]).transpose()
-        cv_output = cv_output.sort_values(by='seq')
-        cv_output = cv_output.drop('seq', axis=1)
-        cv_output.to_csv(out_path + "/" + str(i) + "/val_roc.csv")
+        output = pd.DataFrame([net.train_probs, net.train_labels], index = ["prob", "label"]).transpose()
+        output.to_csv(out_path + "/" + str(i) + "/train_roc.csv")
+        output = pd.DataFrame([net.val_probs, net.val_labels], index = ["prob", "label"]).transpose()
+        output.to_csv(out_path + "/" + str(i) + "/val_roc.csv")
         
         #independent test
-        test_output = pd.DataFrame([test_probs, test_labels, test_seqs], index = ["prob", "label", "seq"]).transpose()
-        test_output = test_output.sort_values(by='seq')
-        test_output = test_output.drop('seq', axis=1)
-        test_output.to_csv(out_path + "/" + str(i) + "/test_roc.csv")
+        output = pd.DataFrame([net.test_probs, net.test_labels], index = ["prob", "label"]).transpose()
+        output.to_csv(out_path + "/" + str(i) + "/test_roc.csv")
 
     print('total time:', time.time()-start)
 
